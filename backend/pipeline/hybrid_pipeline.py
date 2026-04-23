@@ -12,10 +12,19 @@ from openai import OpenAI
 load_dotenv()
 
 # --- Clients ---
-driver = GraphDatabase.driver(
-    os.getenv("NEO4J_URI"),
-    auth=(os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
-)
+try:
+    driver = GraphDatabase.driver(
+        os.getenv("NEO4J_URI"),
+        auth=(os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
+    )
+    driver.verify_connectivity()
+    NEO4J_AVAILABLE = True
+    print("✅ Neo4j connected")
+except Exception as e:
+    print(f"⚠️ Neo4j unavailable: {e}")
+    NEO4J_AVAILABLE = False
+    driver = None
+
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -72,38 +81,32 @@ Respond ONLY with valid JSON, no explanation. Example:
 # =============================================================
 
 def query_graph(entities: list) -> str:
-    """
-    Given a list of entity names, fetch all relevant relationships
-    from the Neo4j graph and return them as readable text.
-    """
-    if not entities:
+    if not entities or not NEO4J_AVAILABLE or driver is None:
         return ""
-    
-    results = []
-    
-    with driver.session() as session:
-        for entity in entities:
-            # Search people
-            people = session.run("""
-                MATCH (p:Person)
-                WHERE toLower(p.name) CONTAINS toLower($name)
-                OPTIONAL MATCH (p)-[:BELONGS_TO]->(t:Team)
-                OPTIONAL MATCH (p)-[:MANAGES]->(report:Person)
-                OPTIONAL MATCH (manager:Person)-[:MANAGES]->(p)
-                OPTIONAL MATCH (p)-[:WORKS_ON]->(proj:Project)
-                OPTIONAL MATCH (p)-[:WROTE]->(d:Document)
-                RETURN p.name AS person, p.role AS role,
-                       t.name AS team,
-                       collect(DISTINCT report.name) AS manages,
-                       collect(DISTINCT manager.name) AS managed_by,
-                       collect(DISTINCT proj.name) AS works_on,
-                       collect(DISTINCT d.title) AS wrote
-            """, name=entity)
-            
-            for record in people:
-                r = dict(record)
-                if r["person"]:
-                    results.append(f"""
+    try:
+        results = []
+        with driver.session() as session:
+            for entity in entities:
+                # Search people
+                people = session.run("""
+                    MATCH (p:Person)
+                    WHERE toLower(p.name) CONTAINS toLower($name)
+                    OPTIONAL MATCH (p)-[:BELONGS_TO]->(t:Team)
+                    OPTIONAL MATCH (p)-[:MANAGES]->(report:Person)
+                    OPTIONAL MATCH (manager:Person)-[:MANAGES]->(p)
+                    OPTIONAL MATCH (p)-[:WORKS_ON]->(proj:Project)
+                    OPTIONAL MATCH (p)-[:WROTE]->(d:Document)
+                    RETURN p.name AS person, p.role AS role,
+                           t.name AS team,
+                           collect(DISTINCT report.name) AS manages,
+                           collect(DISTINCT manager.name) AS managed_by,
+                           collect(DISTINCT proj.name) AS works_on,
+                           collect(DISTINCT d.title) AS wrote
+                """, name=entity)
+                for record in people:
+                    r = dict(record)
+                    if r["person"]:
+                        results.append(f"""
 Person: {r['person']}
   Role: {r['role']}
   Team: {r['team']}
@@ -112,46 +115,46 @@ Person: {r['person']}
   Works on: {', '.join(r['works_on']) or 'nothing listed'}
   Documents written: {', '.join(r['wrote']) or 'none'}""")
 
-            # Search teams
-            teams = session.run("""
-                MATCH (t:Team)
-                WHERE toLower(t.name) CONTAINS toLower($name)
-                OPTIONAL MATCH (p:Person)-[:BELONGS_TO]->(t)
-                OPTIONAL MATCH (t)-[:OWNS]->(proj:Project)
-                RETURN t.name AS team,
-                       collect(DISTINCT p.name) AS members,
-                       collect(DISTINCT proj.name) AS projects
-            """, name=entity)
-            
-            for record in teams:
-                r = dict(record)
-                if r["team"]:
-                    results.append(f"""
+                # Search teams
+                teams = session.run("""
+                    MATCH (t:Team)
+                    WHERE toLower(t.name) CONTAINS toLower($name)
+                    OPTIONAL MATCH (p:Person)-[:BELONGS_TO]->(t)
+                    OPTIONAL MATCH (t)-[:OWNS]->(proj:Project)
+                    RETURN t.name AS team,
+                           collect(DISTINCT p.name) AS members,
+                           collect(DISTINCT proj.name) AS projects
+                """, name=entity)
+                for record in teams:
+                    r = dict(record)
+                    if r["team"]:
+                        results.append(f"""
 Team: {r['team']}
   Members: {', '.join(r['members'])}
   Owns projects: {', '.join(r['projects'])}""")
 
-            # Search projects
-            projects = session.run("""
-                MATCH (proj:Project)
-                WHERE toLower(proj.name) CONTAINS toLower($name)
-                OPTIONAL MATCH (t:Team)-[:OWNS]->(proj)
-                OPTIONAL MATCH (p:Person)-[:WORKS_ON]->(proj)
-                RETURN proj.name AS project,
-                       t.name AS owned_by,
-                       collect(DISTINCT p.name) AS engineers
-            """, name=entity)
-            
-            for record in projects:
-                r = dict(record)
-                if r["project"]:
-                    results.append(f"""
+                # Search projects
+                projects = session.run("""
+                    MATCH (proj:Project)
+                    WHERE toLower(proj.name) CONTAINS toLower($name)
+                    OPTIONAL MATCH (t:Team)-[:OWNS]->(proj)
+                    OPTIONAL MATCH (p:Person)-[:WORKS_ON]->(proj)
+                    RETURN proj.name AS project,
+                           t.name AS owned_by,
+                           collect(DISTINCT p.name) AS engineers
+                """, name=entity)
+                for record in projects:
+                    r = dict(record)
+                    if r["project"]:
+                        results.append(f"""
 Project: {r['project']}
   Owned by: {r['owned_by']}
   Engineers: {', '.join(r['engineers'])}""")
 
-    return "\n".join(results) if results else ""
-
+        return "\n".join(results) if results else ""
+    except Exception as e:
+        print(f"⚠️ Graph query failed: {e}")
+        return ""
 
 # =============================================================
 # STAGE 3 — Vector Retrieval (Pinecone)
