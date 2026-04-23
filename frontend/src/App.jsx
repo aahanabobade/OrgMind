@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 
-const API = "https://orgmind-production.up.railway.app"
+const API = "https://orgmind-4uc6.onrender.com"
 
 // ─── Google Fonts ────────────────────────────────────────────
 const fontLink = document.createElement("link")
@@ -308,11 +308,11 @@ function DebugPanel({ debug, dark }) {
         }}>
           <div style={{ display: "flex", gap: 6 }}>
             <span style={{ color: dark ? "#5f6368" : "#9aa0a6", minWidth: 60 }}>entities</span>
-            <span style={{ color: "#1a73e8" }}>{debug.entities?.join(", ") || "—"}</span>
+            <span style={{ color: "#1a73e8" }}>{debug.entities?.join(", ") || " "}</span>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <span style={{ color: dark ? "#5f6368" : "#9aa0a6", minWidth: 60 }}>topic</span>
-            <span style={{ color: "#9334e6" }}>{debug.search_topic || "—"}</span>
+            <span style={{ color: "#9334e6" }}>{debug.search_topic || " "}</span>
           </div>
         </div>
       )}
@@ -1001,7 +1001,7 @@ function ChatPage({ dark }) {
                 ))}
               </div>
               <p style={{ fontFamily: "'Google Sans', sans-serif", fontSize: isMobile ? 15 : 18, fontWeight: 400, color: dark ? "#9aa0a6" : "#5f6368", textAlign: "center", maxWidth: 380, lineHeight: 1.5 }}>
-                Ask anything about your company — teams, people, projects, docs
+                Ask anything about your company: teams, people, projects, docs
               </p>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 8 : 12, width: "100%", maxWidth: 580 }}>
