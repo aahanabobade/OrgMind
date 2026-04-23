@@ -12,6 +12,8 @@ from pipeline.hybrid_pipeline import (
 
 app = FastAPI(title="OrgMind API")
 
+
+
 # Allow React dev server to call this API
 app.add_middleware(
     CORSMiddleware,
@@ -20,12 +22,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class QuestionRequest(BaseModel):
-    question: str
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
 
 @app.get("/")
 def health():
     return {"status": "OrgMind API is running"}
+class QuestionRequest(BaseModel):
+    question: str
+
+
 
 @app.post("/ask")
 def ask(request: QuestionRequest):
@@ -61,3 +68,4 @@ def ask(request: QuestionRequest):
             "graph_context": graph_context
         }
     }
+
