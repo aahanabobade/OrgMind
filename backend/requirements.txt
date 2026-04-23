@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+neo4j
+pinecone
+openai
+python-dotenv
+pydantic
+redis
